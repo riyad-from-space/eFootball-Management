@@ -195,8 +195,11 @@ export async function updateTeam(id: string, raw: unknown): Promise<ActionResult
 export async function deleteTeam(id: string): Promise<ActionResult> {
   try {
     const db = await requireAdmin()
+    // Capture the tournament so we can refresh standings after removal.
+    const { data: team } = await db.from('teams').select('tournament_id').eq('id', id).maybeSingle()
     const { error } = await db.from('teams').delete().eq('id', id)
     if (error) throw new Error(error.message)
+    if (team?.tournament_id) await recomputeStandings(db, team.tournament_id)
     revalidateAll()
     return { ok: true }
   } catch (e) {

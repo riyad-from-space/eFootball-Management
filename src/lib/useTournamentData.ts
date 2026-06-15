@@ -76,8 +76,21 @@ export function useActiveTournamentData(): TournamentData {
     }
     channel.subscribe()
 
+    // Fallbacks so data stays fresh even if a realtime UPDATE event is missed
+    // (e.g. before REPLICA IDENTITY FULL is set): refetch when the tab regains
+    // focus, and poll on a slow interval as a safety net.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') reload()
+    }
+    window.addEventListener('focus', reload)
+    document.addEventListener('visibilitychange', onVisible)
+    const poll = setInterval(load, 15000)
+
     return () => {
       if (debounce.current) clearTimeout(debounce.current)
+      clearInterval(poll)
+      window.removeEventListener('focus', reload)
+      document.removeEventListener('visibilitychange', onVisible)
       db.removeChannel(channel)
     }
   }, [load])

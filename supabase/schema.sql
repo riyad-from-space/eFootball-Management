@@ -163,6 +163,14 @@ end $$;
 -- ----------------------------------------------------------------------------
 -- 6. Realtime — publish all four tables (idempotent)
 -- ----------------------------------------------------------------------------
+-- REPLICA IDENTITY FULL is REQUIRED for Realtime to deliver UPDATE/DELETE events
+-- on RLS-protected tables. Without it, only INSERTs reach subscribers, so live
+-- score/standings/bracket updates would silently never arrive.
+alter table public.tournaments replica identity full;
+alter table public.teams       replica identity full;
+alter table public.matches     replica identity full;
+alter table public.standings   replica identity full;
+
 do $$
 begin
   begin
