@@ -5,10 +5,22 @@ import { z } from 'zod'
 
 export const FORMATS = ['knockout', 'league', 'league_playoffs'] as const
 
+// These helpers are IDEMPOTENT: they accept a string, '', null, or undefined
+// and always normalize empty values to null. This matters because the same
+// schema validates on the client (React Hook Form) and again on the server
+// (server action) — so the schema must accept its own transformed output.
+const optionalText = (max: number) =>
+  z.string().trim().max(max).nullable().optional().transform((v) => v || null)
+
+const optionalUrl = z
+  .union([z.string().trim().url('Logo must be a valid URL').max(500), z.literal(''), z.null()])
+  .optional()
+  .transform((v) => v || null)
+
 const optionalDate = z
   .string()
+  .nullable()
   .optional()
-  .or(z.literal(''))
   .transform((v) => (v ? v : null))
 
 export const loginSchema = z.object({
@@ -19,9 +31,9 @@ export type LoginInput = z.infer<typeof loginSchema>
 export const tournamentSchema = z
   .object({
     name: z.string().trim().min(2, 'Name must be at least 2 characters').max(120),
-    description: z.string().trim().max(2000).optional().or(z.literal('')).transform((v) => v || null),
+    description: optionalText(2000),
     format: z.enum(FORMATS),
-    champion_prize: z.string().trim().max(200).optional().or(z.literal('')).transform((v) => v || null),
+    champion_prize: optionalText(200),
     start_date: optionalDate,
     end_date: optionalDate,
   })
@@ -41,8 +53,8 @@ export const teamSchema = z.object({
     .min(2, 'Name must be at least 2 characters')
     .max(80)
     .refine((n) => !ABBREV.test(n), 'Use the full team name, not an abbreviation'),
-  logo: z.string().trim().url('Logo must be a valid URL').max(500).optional().or(z.literal('')).transform((v) => v || null),
-  color: z.string().trim().max(120).optional().or(z.literal('')).transform((v) => v || null),
+  logo: optionalUrl,
+  color: optionalText(120),
 })
 export type TeamInput = z.infer<typeof teamSchema>
 

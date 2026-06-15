@@ -14,6 +14,7 @@ import {
 } from '@/lib/auth'
 import { generateFixtures, type TeamRef } from '@/utils/fixtureGenerator'
 import { computeStandings, determineWinner, determineBracketSlot } from '@/utils/resultProcessor'
+import { ZodError } from 'zod'
 import {
   tournamentSchema,
   teamSchema,
@@ -80,6 +81,11 @@ async function requireAdmin() {
 }
 
 function fail(e: unknown): ActionResult {
+  if (e instanceof ZodError) {
+    const first = e.issues[0]
+    const where = first?.path?.length ? `${first.path.join('.')}: ` : ''
+    return { ok: false, error: first ? `${where}${first.message}` : 'Invalid input.' }
+  }
   const msg = e instanceof Error ? e.message : 'Something went wrong.'
   return { ok: false, error: msg }
 }
