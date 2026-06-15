@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #ccff00;
+  --color-brand-secondary: #ff007f;
+  --color-brand-accent: #00f0ff;
+  --color-dark-bg: #07080f;
+  --color-dark-card: #101221;
+  --color-dark-border: #1c203b;
+  --color-dark-muted: #727a9c;
+  
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+:root {
+  --background: #07080f;
+  --foreground: #f1f3f9;
+  --card-bg: #101221;
+  --border-color: #1c203b;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Custom esports styling */
+.glow-card {
+  position: relative;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glow-card:hover {
+  border-color: rgba(204, 255, 0, 0.4);
+  box-shadow: 0 0 15px rgba(204, 255, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.glow-card-pink:hover {
+  border-color: rgba(255, 0, 127, 0.4);
+  box-shadow: 0 0 15px rgba(255, 0, 127, 0.15);
+  transform: translateY(-2px);
+}
+
+.glow-text {
+  text-shadow: 0 0 10px rgba(204, 255, 0, 0.5);
+}
+
+.glow-text-pink {
+  text-shadow: 0 0 10px rgba(255, 0, 127, 0.5);
+}
+
+.esports-grid {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(28, 32, 59, 0.5) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(28, 32, 59, 0.5) 1px, transparent 1px);
+}
+
+/* Hide scrollbar but keep functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Fade-in animation used across pages */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out both;
+}
+
+/* Extra-small text utility */
+.text-xxs {
+  font-size: 0.65rem;
+  line-height: 1rem;
+}
+
+/* Thin hover utilities used in standings table */
+.hover\:bg-white\/3:hover { background-color: rgba(255,255,255,0.03); }
+.hover\:bg-brand-primary\/8:hover { background-color: rgba(204,255,0,0.08); }
+.hover\:bg-brand-accent\/5:hover { background-color: rgba(0,240,255,0.05); }
+.bg-brand-accent\/2 { background-color: rgba(0,240,255,0.02); }
+.bg-brand-primary\/2 { background-color: rgba(204,255,0,0.02); }
+.bg-brand-primary\/3 { background-color: rgba(204,255,0,0.03); }
+.bg-white\/3 { background-color: rgba(255,255,255,0.03); }
+
+/* Bounce short animation */
+@keyframes bounceShort {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.animate-bounce-short {
+  animation: bounceShort 3s ease-in-out infinite;
+}
+
