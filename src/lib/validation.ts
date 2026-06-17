@@ -100,3 +100,11 @@ export type ResultInput = z.infer<typeof resultSchema>
 export const createTournamentTeamsSchema = z.object({
   playoff_teams: z.coerce.number().int().min(2).max(16).optional(),
 })
+
+export const gallerySchema = z.object({
+  title: optionalText(120),
+})
+export type GalleryInput = z.infer<typeof gallerySchema>
+
+// File names allowed for upload — keep extension whitelist in sync with the bucket.
+export const ALLOWED_IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'gif'] as const

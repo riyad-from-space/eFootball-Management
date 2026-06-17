@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/utils/supabase/client'
-import { fetchActiveTournament, fetchTeams, fetchMatches, fetchStandings } from '@/lib/queries'
-import type { Tournament, Team, MatchWithTeams, StandingWithTeam } from '@/types/database.types'
+import { fetchActiveTournament, fetchTeams, fetchMatches, fetchStandings, fetchGallery } from '@/lib/queries'
+import type { Tournament, Team, MatchWithTeams, StandingWithTeam, GalleryImage } from '@/types/database.types'
 
 export interface TournamentData {
   loading: boolean
@@ -13,6 +13,7 @@ export interface TournamentData {
   teams: Team[]
   matches: MatchWithTeams[]
   standings: StandingWithTeam[]
+  gallery: GalleryImage[]
 }
 
 const EMPTY: TournamentData = {
@@ -23,6 +24,7 @@ const EMPTY: TournamentData = {
   teams: [],
   matches: [],
   standings: [],
+  gallery: [],
 }
 
 /**
@@ -46,12 +48,14 @@ export function useActiveTournamentData(): TournamentData {
         setState({ ...EMPTY, loading: false })
         return
       }
-      const [teams, matches, standings] = await Promise.all([
+      const [teams, matches, standings, gallery] = await Promise.all([
         fetchTeams(db, tournament.id),
         fetchMatches(db, tournament.id),
         fetchStandings(db, tournament.id),
+        // Fail-safe: if the gallery table isn't set up yet, don't break the rest.
+        fetchGallery(db, tournament.id).catch(() => []),
       ])
-      setState({ loading: false, configured: true, error: null, tournament, teams, matches, standings })
+      setState({ loading: false, configured: true, error: null, tournament, teams, matches, standings, gallery })
     } catch (e) {
       setState({ ...EMPTY, loading: false, error: e instanceof Error ? e.message : 'Failed to load data.' })
     }
@@ -71,7 +75,7 @@ export function useActiveTournamentData(): TournamentData {
     }
 
     const channel = db.channel('efootball-public')
-    for (const table of ['tournaments', 'teams', 'matches', 'standings']) {
+    for (const table of ['tournaments', 'teams', 'matches', 'standings', 'gallery_images']) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, reload)
     }
     channel.subscribe()

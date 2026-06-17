@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Info, Calendar, Trophy, GitBranch, ListOrdered, BookOpen, Crown, ShieldCheck } from 'lucide-react'
+import { Home, Info, Calendar, Trophy, GitBranch, ListOrdered, BookOpen, Crown, ImageIcon, ShieldCheck } from 'lucide-react'
 
 interface NavItem {
   name: string
@@ -19,6 +19,7 @@ const navItems: NavItem[] = [
   { name: 'Bracket', href: '/bracket', icon: GitBranch },
   { name: 'Standings', href: '/standings', icon: ListOrdered },
   { name: 'Rules', href: '/rules', icon: BookOpen },
+  { name: 'Gallery', href: '/gallery', icon: ImageIcon },
   { name: 'Champion', href: '/champion', icon: Crown },
   { name: 'Admin', href: '/admin', icon: ShieldCheck },
 ]

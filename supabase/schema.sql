@@ -186,3 +186,37 @@ begin
     alter publication supabase_realtime add table public.standings;
   exception when duplicate_object then null; end;
 end $$;
+
+-- ----------------------------------------------------------------------------
+-- 7. gallery_images  (phone screenshots etc., categorized by tournament)
+--    Files live in the public Storage bucket "gallery"; rows hold the public
+--    URL + a caption. Self-contained & idempotent — safe to run on its own.
+-- ----------------------------------------------------------------------------
+create table if not exists public.gallery_images (
+  id            uuid primary key default gen_random_uuid(),
+  tournament_id uuid not null references public.tournaments(id) on delete cascade,
+  title         text,
+  image_url     text not null,
+  storage_path  text,
+  position      integer not null default 0,
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists idx_gallery_tournament on public.gallery_images(tournament_id, position);
+
+alter table public.gallery_images enable row level security;
+
+do $$
+begin
+  drop policy if exists "public read gallery" on public.gallery_images;
+  create policy "public read gallery" on public.gallery_images for select using (true);
+end $$;
+
+alter table public.gallery_images replica identity full;
+
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table public.gallery_images;
+  exception when duplicate_object then null; end;
+end $$;

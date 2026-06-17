@@ -136,6 +136,28 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['standings']['Insert']>
         Relationships: []
       }
+      gallery_images: {
+        Row: {
+          id: string
+          tournament_id: string
+          title: string | null
+          image_url: string
+          storage_path: string | null
+          position: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tournament_id: string
+          title?: string | null
+          image_url: string
+          storage_path?: string | null
+          position?: number
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['gallery_images']['Insert']>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -149,6 +171,7 @@ export type Tournament = Database['public']['Tables']['tournaments']['Row']
 export type Team = Database['public']['Tables']['teams']['Row']
 export type Match = Database['public']['Tables']['matches']['Row']
 export type Standing = Database['public']['Tables']['standings']['Row']
+export type GalleryImage = Database['public']['Tables']['gallery_images']['Row']
 
 // A match joined with its team rows, as the UI consumes it.
 export interface MatchWithTeams extends Match {

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database, Tournament, Team, MatchWithTeams, StandingWithTeam } from '@/types/database.types'
+import type { Database, Tournament, Team, MatchWithTeams, StandingWithTeam, GalleryImage } from '@/types/database.types'
 
 // Client-side data fetchers shared by the public pages. They take whatever
 // Supabase client the caller already created (browser or server read client).
@@ -42,6 +42,17 @@ export async function fetchMatches(db: DB, tournamentId: string): Promise<MatchW
     .order('match_number', { ascending: true })
   if (error) throw new Error(error.message)
   return (data ?? []) as unknown as MatchWithTeams[]
+}
+
+export async function fetchGallery(db: DB, tournamentId: string): Promise<GalleryImage[]> {
+  const { data, error } = await db
+    .from('gallery_images')
+    .select('*')
+    .eq('tournament_id', tournamentId)
+    .order('position', { ascending: true })
+    .order('created_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return data ?? []
 }
 
 export async function fetchStandings(db: DB, tournamentId: string): Promise<StandingWithTeam[]> {

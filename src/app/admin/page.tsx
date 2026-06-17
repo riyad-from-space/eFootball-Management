@@ -6,9 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import {
   ShieldCheck, Lock, LogOut, Plus, Pencil, Trash2, Loader2, X, Check, Power,
   RefreshCw, Calendar, ListOrdered, Users, Trophy, ArrowLeftRight, Flag, AlertTriangle,
+  Image as ImageIcon, Upload,
 } from 'lucide-react'
 import { createClient } from '@/utils/supabase/client'
-import { fetchAllTournaments, fetchTeams, fetchMatches } from '@/lib/queries'
+import { fetchAllTournaments, fetchTeams, fetchMatches, fetchGallery } from '@/lib/queries'
 import {
   loginSchema, tournamentSchema, teamSchema, fixtureEditSchema, resultSchema, FORMATS,
 } from '@/lib/validation'
@@ -18,9 +19,10 @@ import {
   createTeam, updateTeam, deleteTeam,
   regenerateFixtures, updateFixture, swapFixtureTeams,
   saveResult, clearResult,
+  createGalleryUpload, saveGalleryImage, deleteGalleryImage,
 } from './actions'
 import type { ActionResult } from '@/lib/types'
-import type { Tournament, Team, MatchWithTeams } from '@/types/database.types'
+import type { Tournament, Team, MatchWithTeams, GalleryImage } from '@/types/database.types'
 import ConfigError from '@/components/ConfigError'
 import TeamBadge from '@/components/TeamBadge'
 
@@ -127,7 +129,7 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
   )
 }
 
-type Tab = 'tournaments' | 'teams' | 'fixtures' | 'results'
+type Tab = 'tournaments' | 'teams' | 'fixtures' | 'results' | 'gallery'
 
 // ─── Dashboard ─────────────────────────────────────────────────────────────────
 function Dashboard({ onLogout }: { onLogout: () => void }) {
@@ -136,6 +138,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [selectedId, setSelectedId] = useState<string>('')
   const [teams, setTeams] = useState<Team[]>([])
   const [matches, setMatches] = useState<MatchWithTeams[]>([])
+  const [gallery, setGallery] = useState<GalleryImage[]>([])
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
   const notify = useCallback((msg: string, ok = true) => {
@@ -160,12 +163,18 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     if (!db || !id) {
       setTeams([])
       setMatches([])
+      setGallery([])
       return
     }
     try {
-      const [t, m] = await Promise.all([fetchTeams(db, id), fetchMatches(db, id)])
+      const [t, m, g] = await Promise.all([
+        fetchTeams(db, id),
+        fetchMatches(db, id),
+        fetchGallery(db, id).catch(() => []),
+      ])
       setTeams(t)
       setMatches(m)
+      setGallery(g)
     } catch (e) {
       notify(e instanceof Error ? e.message : 'Failed to load tournament data', false)
     }
@@ -201,6 +210,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     { key: 'teams', label: 'Teams', icon: Users },
     { key: 'fixtures', label: 'Fixtures', icon: Calendar },
     { key: 'results', label: 'Results', icon: ListOrdered },
+    { key: 'gallery', label: 'Gallery', icon: ImageIcon },
   ]
 
   return (
@@ -266,6 +276,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       {tab === 'teams' && <TeamsTab tournament={selected} teams={teams} run={run} />}
       {tab === 'fixtures' && <FixturesTab tournament={selected} teams={teams} matches={matches} run={run} />}
       {tab === 'results' && <ResultsTab tournament={selected} matches={matches} run={run} />}
+      {tab === 'gallery' && <GalleryTab tournament={selected} gallery={gallery} run={run} notify={notify} />}
 
       {toast && (
         <div
@@ -924,5 +935,165 @@ function ResultForm({ match, onClose, run }: { match: MatchWithTeams; onClose: (
         </div>
       </form>
     </Modal>
+  )
+}
+
+// ─── Gallery tab ─────────────────────────────────────────────────────────────
+function GalleryTab({
+  tournament, gallery, run, notify,
+}: {
+  tournament: Tournament | null
+  gallery: GalleryImage[]
+  run: RunFn
+  notify: (msg: string, ok?: boolean) => void
+}) {
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [title, setTitle] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<GalleryImage | null>(null)
+
+  if (!tournament)
+    return <p className="rounded-xl border border-dashed border-dark-border bg-dark-card/40 p-10 text-center text-dark-muted">Select a tournament first.</p>
+
+  const pickFile = (f: File | null) => {
+    if (preview) URL.revokeObjectURL(preview)
+    setFile(f)
+    setPreview(f ? URL.createObjectURL(f) : null)
+  }
+
+  const reset = () => {
+    if (preview) URL.revokeObjectURL(preview)
+    setFile(null)
+    setPreview(null)
+    setTitle('')
+  }
+
+  const upload = async () => {
+    if (!file) return
+    setUploading(true)
+    try {
+      const ext = file.name.split('.').pop() || 'png'
+      const signed = await createGalleryUpload(tournament.id, ext)
+      if (!signed.ok) {
+        notify(signed.error, false)
+        return
+      }
+      const db = createClient()
+      if (!db) {
+        notify('Supabase not configured.', false)
+        return
+      }
+      const { error } = await db.storage.from('gallery').uploadToSignedUrl(signed.path, signed.token, file)
+      if (error) {
+        notify(error.message, false)
+        return
+      }
+      const ok = await run(saveGalleryImage(tournament.id, signed.path, { title }), 'Image added')
+      if (ok) reset()
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Uploader */}
+      <div className="glow-card space-y-3 p-4">
+        <h3 className="text-sm font-black uppercase tracking-widest text-white">Add image</h3>
+        <p className="text-xs text-dark-muted">Portrait phone screenshots work best. PNG / JPG / WEBP / GIF, up to 10 MB.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+          <label className="flex h-44 w-28 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-dark-border bg-black/40 text-center text-dark-muted hover:border-brand-primary/40">
+            {preview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview} alt="preview" className="h-full w-full object-cover" />
+            ) : (
+              <span className="flex flex-col items-center gap-1 text-xs">
+                <Upload className="h-5 w-5" /> Choose image
+              </span>
+            )}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="sr-only"
+              onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          <div className="flex-1 space-y-3">
+            <div>
+              <label className={labelCls}>Title / caption (optional)</label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={120}
+                className={inputCls}
+                placeholder="e.g. Final — winning goal"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={upload}
+                disabled={!file || uploading}
+                className="flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-bold text-black disabled:opacity-50"
+              >
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                Upload
+              </button>
+              {file && (
+                <button onClick={reset} disabled={uploading} className="rounded-lg border border-dark-border px-4 py-2 text-sm text-dark-muted">
+                  Cancel
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Existing images */}
+      {gallery.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-dark-border bg-dark-card/40 p-10 text-center text-dark-muted">
+          No images yet for {tournament.name}.
+        </p>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {gallery.map((img) => (
+            <div key={img.id} className="group relative overflow-hidden rounded-xl border border-dark-border bg-dark-card">
+              <div className="aspect-[9/16] w-full overflow-hidden bg-black/40">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.image_url} alt={img.title ?? 'Gallery image'} className="h-full w-full object-cover" />
+              </div>
+              {img.title && <p className="truncate px-2 py-1.5 text-xs font-semibold text-white">{img.title}</p>}
+              <button
+                onClick={() => setConfirmDelete(img)}
+                className="absolute right-1.5 top-1.5 rounded-lg bg-black/70 p-1.5 text-brand-secondary opacity-0 transition-opacity group-hover:opacity-100"
+                aria-label="Delete image"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {confirmDelete && (
+        <Modal title="Delete image?" onClose={() => setConfirmDelete(null)}>
+          <p className="text-sm text-dark-muted">This permanently removes the image from the gallery and storage.</p>
+          <div className="mt-5 flex justify-end gap-2">
+            <button onClick={() => setConfirmDelete(null)} className="rounded-lg border border-dark-border px-4 py-2 text-sm text-white">
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                const ok = await run(deleteGalleryImage(confirmDelete.id), 'Image deleted')
+                if (ok) setConfirmDelete(null)
+              }}
+              className="rounded-lg bg-brand-secondary px-4 py-2 text-sm font-bold text-white"
+            >
+              Delete
+            </button>
+          </div>
+        </Modal>
+      )}
+    </div>
   )
 }

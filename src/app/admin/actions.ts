@@ -14,6 +14,7 @@ import {
 } from '@/lib/auth'
 import { generateFixtures, type TeamRef } from '@/utils/fixtureGenerator'
 import { computeStandings, determineWinner, determineBracketSlot } from '@/utils/resultProcessor'
+import { randomUUID } from 'node:crypto'
 import { ZodError } from 'zod'
 import {
   tournamentSchema,
@@ -21,11 +22,13 @@ import {
   fixtureEditSchema,
   scheduleSchema,
   resultSchema,
+  gallerySchema,
+  ALLOWED_IMAGE_EXT,
 } from '@/lib/validation'
 import type { Match } from '@/types/database.types'
 import type { ActionResult } from '@/lib/types'
 
-const PUBLIC_PATHS = ['/', '/tournament', '/fixtures', '/results', '/bracket', '/standings', '/champion', '/admin']
+const PUBLIC_PATHS = ['/', '/tournament', '/fixtures', '/results', '/bracket', '/standings', '/champion', '/gallery', '/admin']
 function revalidateAll() {
   for (const p of PUBLIC_PATHS) revalidatePath(p)
 }
@@ -493,6 +496,63 @@ export async function clearResult(matchId: string): Promise<ActionResult> {
     // If a final was un-decided, drop tournament back to ongoing.
     await db.from('tournaments').update({ status: 'ongoing' }).eq('id', m.tournament_id).eq('status', 'completed')
 
+    revalidateAll()
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+// ─── Gallery ─────────────────────────────────────────────────────────────────
+const GALLERY_BUCKET = 'gallery'
+
+type UploadResult = { ok: true; path: string; token: string } | { ok: false; error: string }
+
+/** Admin-gated: mint a one-time signed upload URL so the browser uploads the
+ *  file directly to Storage (avoids server body-size limits). */
+export async function createGalleryUpload(tournamentId: string, ext: string): Promise<UploadResult> {
+  try {
+    const db = await requireAdmin()
+    const clean = ext.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (!(ALLOWED_IMAGE_EXT as readonly string[]).includes(clean)) {
+      throw new Error('Only PNG, JPG, WEBP or GIF images are allowed.')
+    }
+    const path = `${tournamentId}/${randomUUID()}.${clean}`
+    const { data, error } = await db.storage.from(GALLERY_BUCKET).createSignedUploadUrl(path)
+    if (error || !data) throw new Error(error?.message || 'Could not create upload URL.')
+    return { ok: true, path: data.path, token: data.token }
+  } catch (e) {
+    return fail(e) as UploadResult
+  }
+}
+
+/** Admin-gated: record an uploaded image as a gallery row. */
+export async function saveGalleryImage(tournamentId: string, path: string, raw: unknown): Promise<ActionResult> {
+  try {
+    const { title } = gallerySchema.parse(raw)
+    const db = await requireAdmin()
+    const { data: pub } = db.storage.from(GALLERY_BUCKET).getPublicUrl(path)
+    const { error } = await db.from('gallery_images').insert({
+      tournament_id: tournamentId,
+      title,
+      image_url: pub.publicUrl,
+      storage_path: path,
+    })
+    if (error) throw new Error(error.message)
+    revalidateAll()
+    return { ok: true }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+export async function deleteGalleryImage(id: string): Promise<ActionResult> {
+  try {
+    const db = await requireAdmin()
+    const { data: row } = await db.from('gallery_images').select('storage_path').eq('id', id).maybeSingle()
+    const { error } = await db.from('gallery_images').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+    if (row?.storage_path) await db.storage.from(GALLERY_BUCKET).remove([row.storage_path])
     revalidateAll()
     return { ok: true }
   } catch (e) {
